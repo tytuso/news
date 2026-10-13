@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import NewsletterSignup from "./newsletter-signup";
 import type { SignalItem, SourceReport } from "../lib/feeds";
 import type { SignalSource } from "../lib/sources";
 
@@ -35,7 +36,7 @@ function filterMatch(item: SignalItem, filter: FeedFilter, saved: string[]) {
   return true;
 }
 
-export default function SignalReader({ signals, sources, reports, refreshedAt }: { signals: SignalItem[]; sources: SourceInfo[]; reports: SourceReport[]; refreshedAt: string }) {
+export default function SignalReader({ signals, sources, reports, refreshedAt, newsletterReady }: { signals: SignalItem[]; sources: SourceInfo[]; reports: SourceReport[]; refreshedAt: string; newsletterReady: boolean }) {
   const [filter, setFilter] = useState<FeedFilter>("All");
   const [query, setQuery] = useState("");
   const [order, setOrder] = useState<SortOrder>("latest");
@@ -168,6 +169,7 @@ export default function SignalReader({ signals, sources, reports, refreshedAt }:
           </div>
         </section>
 
+        <NewsletterSignup enabled={newsletterReady} />
         <section className="feedSection" id="feed">
           <div className="shell feedShell">
             <div className="feedHeading">

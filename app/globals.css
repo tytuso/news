@@ -17,3 +17,43 @@
 @media(max-width:780px){.publisherBox{flex:1;justify-content:flex-start}.publisherBox select{max-width:158px}.sortBox{flex:1;justify-content:flex-end}.toolbar{flex-wrap:wrap}.searchBox{flex-basis:100%;max-width:none}}
 @media(max-width:520px){.publisherBox{width:auto;flex:1}.publisherBox span{display:none}.publisherBox select{max-width:100%;width:100%}.sortBox{width:auto;flex:1}.sortBox span{display:none}.sortBox select{max-width:100%;width:100%}.sourceList small{font-size:10px}.heroStats{font-size:11px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
+
+/* NileSignal Daily: quiet, conversion-focused newsletter signup */
+.newsletterSection{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.84fr);gap:60px;align-items:center;padding:45px 0 84px}
+.newsletterContent h2{font-size:clamp(32px,3.5vw,46px);letter-spacing:-.055em;line-height:1.17;margin:18px 0 17px}
+.newsletterContent h2 span{color:var(--accent)}
+.newsletterEyebrow{color:var(--accent);font-size:11px;font-weight:850;letter-spacing:.12em}
+.newsletterSpark{font-size:17px;margin-right:8px}
+.newsletterContent>p{font-size:15px;line-height:1.75;color:var(--sub);max-width:480px;margin:0}
+.newsletterFeatures{display:flex;gap:14px;flex-wrap:wrap;margin-top:23px;color:var(--sub);font-size:11px;font-weight:700}
+.newsletterFormWrap{min-width:0}
+.newsletterForm{background:var(--paper);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:10px}
+.newsletterForm>label:not(.newsletterConsent){font-size:12px;font-weight:750;color:var(--text)}
+.newsletterForm>input{border:1px solid var(--line);border-radius:10px;background:var(--page);color:var(--text);height:46px;padding:0 14px;font-size:13px;margin-bottom:9px;outline:none}
+.newsletterForm>input:focus{border-color:var(--accent)}
+.newsletterConsent{display:flex;align-items:flex-start;gap:10px;margin:0 0 7px;font-size:11px;color:var(--sub);line-height:1.5}
+.newsletterConsent input{accent-color:#5145e8;width:16px;height:16px;margin-top:1px;flex:none}
+.newsletterForm>button{min-height:47px;border:none;border-radius:10px;background:#5145e8;color:white;font-size:13px;font-weight:800}
+.newsletterForm>button:disabled{opacity:.5;cursor:not-allowed}
+.newsletterForm small{color:var(--muted);font-size:11px;line-height:1.6;margin-top:4px}
+.newsletterForm small a{color:var(--accent);font-weight:750}
+.newsletterHoneypot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.newsletterStatus{border-radius:9px;padding:12px 14px;font-size:12px;line-height:1.5;margin:2px 0}
+.newsletterStatus.ok{color:#15744e;background:#e6f9ef}.newsletterStatus.error{color:#9c352d;background:#fff0ed}
+.newsletterForm.unavailable{padding:36px;min-height:265px;justify-content:center}
+.newsletterForm.unavailable h3{font-size:22px;margin:9px 0 0;letter-spacing:-.03em}
+.newsletterForm.unavailable p{font-size:13px;color:var(--sub);line-height:1.65;margin:0 0 10px}
+.newsletterComingIcon{font-size:32px;color:var(--accent)}
+.newsletterForm.unavailable>a{font-size:12px;color:var(--accent);font-weight:800}
+.newsletterStandalone{min-height:100vh;background:var(--page);display:flex;flex-direction:column;align-items:center;padding:80px 20px}
+.newsletterBack{font-size:15px;color:var(--accent);font-weight:850;margin-bottom:30px}
+.newsletterStandaloneCard{background:var(--paper);border:1px solid var(--line);border-radius:22px;max-width:530px;width:100%;padding:40px;box-shadow:var(--shadow)}
+.newsletterBadge{font-size:10px;font-weight:900;letter-spacing:.12em;color:var(--accent)}
+.newsletterStandaloneCard h1{font-size:36px;line-height:1.13;letter-spacing:-.045em;margin:18px 0}
+.newsletterStandaloneCard p{font-size:14px;line-height:1.8;color:var(--sub)}
+.newsletterStandaloneCard form button,.newsletterReturn{display:inline-block;padding:14px 20px;color:white;background:#5145e8;border:0;border-radius:10px;font-size:13px;font-weight:800;margin-top:15px}
+.privacyPage .newsletterStandaloneCard{max-width:720px}
+.privacyPage h2{font-size:18px;margin-top:27px}
+.privacyPage a:not(.newsletterBack){color:var(--accent)}
+@media(max-width:780px){.newsletterSection{grid-template-columns:1fr;gap:25px;padding:38px 0 58px}.newsletterContent h2{font-size:clamp(31px,7vw,42px)}}
+@media(max-width:520px){.newsletterSection{padding:30px 0 58px}.newsletterForm{padding:22px}.newsletterStandalone{padding:56px 16px}.newsletterStandaloneCard{padding:27px}.newsletterStandaloneCard h1{font-size:31px}}
