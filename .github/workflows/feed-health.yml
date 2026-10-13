@@ -1,0 +1,47 @@
+name: NileSignal feed health
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production health (three attempts)
+        id: health
+        continue-on-error: true
+        shell: bash
+        run: |
+          for n in 1 2 3; do
+            if curl -fLsS --connect-timeout 15 --max-time 45 "https://nile-ai-signal-six.vercel.app/api/health" -o /tmp/nilesignal-health.json; then
+              cat /tmp/nilesignal-health.json
+              exit 0
+            fi
+            if [ "$n" -lt 3 ]; then sleep 15; fi
+          done
+          echo "All health checks failed"
+          exit 1
+      - name: Open one issue on sustained outage
+        if: steps.health.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json title,number --jq '.[] | select(.title == "NileSignal feed health failed") | .number' | head -n 1)"
+          if [ -z "$existing" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "NileSignal feed health failed" --body "Scheduled feed health checks failed three times. Review /api/health and Vercel Runtime Logs. This issue closes automatically on recovery."
+          fi
+      - name: Close recovered incident
+        if: steps.health.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json title,number --jq '.[] | select(.title == "NileSignal feed health failed") | .number' | head -n 1)"
+          if [ -n "$existing" ]; then
+            gh issue close --repo "$GITHUB_REPOSITORY" "$existing" --comment "Production feed health has recovered."
+          fi
+      - name: Fail job when unhealthy
+        if: steps.health.outcome == 'failure'
+        run: exit 1

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { SignalItem } from "../lib/feeds";
+import type { SignalItem, SourceReport } from "../lib/feeds";
 import type { SignalSource } from "../lib/sources";
 
 type FeedFilter = "All" | "Important" | "Africa" | "Models" | "Tools" | "Business" | "Research" | "Saved";
@@ -35,12 +35,14 @@ function filterMatch(item: SignalItem, filter: FeedFilter, saved: string[]) {
   return true;
 }
 
-export default function SignalReader({ signals, sources }: { signals: SignalItem[]; sources: SourceInfo[] }) {
+export default function SignalReader({ signals, sources, reports, refreshedAt }: { signals: SignalItem[]; sources: SourceInfo[]; reports: SourceReport[]; refreshedAt: string }) {
   const [filter, setFilter] = useState<FeedFilter>("All");
   const [query, setQuery] = useState("");
   const [order, setOrder] = useState<SortOrder>("latest");
   const [visible, setVisible] = useState(12);
   const [saved, setSaved] = useState<string[]>([]);
+  const [savedStories, setSavedStories] = useState<SignalItem[]>([]);
+  const [sourceKey, setSourceKey] = useState("all");
   const [dark, setDark] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
   const [copyState, setCopyState] = useState("");
@@ -49,6 +51,8 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
     try {
       const previous = JSON.parse(localStorage.getItem("nilesignal-bookmarks") || "[]");
       if (Array.isArray(previous)) setSaved(previous.filter((item): item is string => typeof item === "string"));
+      const snapshots = JSON.parse(localStorage.getItem("nilesignal-saved-stories-v1") || "[]");
+      if (Array.isArray(snapshots)) setSavedStories(snapshots.filter((item): item is SignalItem => item && typeof item.id === "string" && typeof item.url === "string" && typeof item.title === "string").slice(0, 80));
       const isDark = localStorage.getItem("nilesignal-theme") === "dark";
       setDark(isDark);
       document.documentElement.dataset.theme = isDark ? "dark" : "light";
@@ -59,31 +63,43 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
     return () => window.removeEventListener("beforeinstallprompt", listener);
   }, []);
 
-  const sorted = useMemo(() => [...signals].sort((a, b) => {
+  const sorted = useMemo(() => [...(filter === "Saved" ? savedStories.concat(signals.filter((item) => saved.includes(item.id) && !savedStories.some((cached) => cached.id === item.id))) : signals)].sort((a, b) => {
     if (order === "impact") return impactRank[a.impact] - impactRank[b.impact] || dateValue(b.publishedAt) - dateValue(a.publishedAt);
     return dateValue(b.publishedAt) - dateValue(a.publishedAt);
-  }), [signals, order]);
+  }), [signals, saved, savedStories, filter, order]);
 
   const matching = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return sorted.filter((item) => filterMatch(item, filter, saved) && (
+    return sorted.filter((item) => filterMatch(item, filter, saved) && (sourceKey === "all" || item.sourceKey === sourceKey) && (
       !needle || (item.title + " " + item.description + " " + item.source + " " + item.category).toLowerCase().includes(needle)
     ));
-  }, [sorted, filter, query, saved]);
+  }, [sorted, filter, query, saved, sourceKey]);
 
-  const briefing = useMemo(() => [...signals].sort((a, b) =>
-    impactRank[a.impact] - impactRank[b.impact] || dateValue(b.publishedAt) - dateValue(a.publishedAt)
-  ).slice(0, 3), [signals]);
+  const briefing = useMemo(() => {
+    const recent = [...signals].filter((item) => Date.now() - dateValue(item.publishedAt) < 14 * 86400000);
+    const ranked = (recent.length ? recent : signals).filter((item) => item.sourceType !== "research").sort((a, b) =>
+      impactRank[a.impact] - impactRank[b.impact] || dateValue(b.publishedAt) - dateValue(a.publishedAt));
+    const used = new Set<string>();
+    return ranked.filter((item) => { if (used.has(item.sourceKey)) return false; used.add(item.sourceKey); return true; }).slice(0, 3);
+  }, [signals]);
 
   const latest = signals.length ? [...signals].sort((a,b) => dateValue(b.publishedAt) - dateValue(a.publishedAt))[0] : null;
   const africaCount = signals.filter((item) => item.africaAngle).length;
+  const availableCount = reports.filter((item) => item.status === "ok").length;
+  const activePublishers = sources.filter((source) => reports.some((report) => report.key === source.key && report.status === "ok"));
+  const refreshedLabel = new Date(refreshedAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const selectFilter = (value: FeedFilter) => { setFilter(value); setVisible(12); };
-  const toggleSaved = (id: string) => {
-    setSaved((current) => {
-      const next = current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id];
-      try { localStorage.setItem("nilesignal-bookmarks", JSON.stringify(next)); } catch {}
-      return next;
-    });
+  const toggleSaved = (item: SignalItem) => {
+    const removing = saved.includes(item.id);
+    const nextIds = removing ? saved.filter((id) => id !== item.id) : [...saved, item.id];
+    const nextStories = removing ? savedStories.filter((story) => story.id !== item.id) :
+      [item, ...savedStories.filter((story) => story.id !== item.id)].slice(0, 80);
+    setSaved(nextIds);
+    setSavedStories(nextStories);
+    try {
+      localStorage.setItem("nilesignal-bookmarks", JSON.stringify(nextIds));
+      localStorage.setItem("nilesignal-saved-stories-v1", JSON.stringify(nextStories));
+    } catch {}
   };
   const toggleTheme = () => {
     const next = !dark;
@@ -93,10 +109,15 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
   };
   const share = async (item: SignalItem) => {
     try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: item.title, url: item.url });
+        return;
+      }
       await navigator.clipboard.writeText(item.title + "\n" + item.url);
       setCopyState(item.id);
-    } catch {
-      setCopyState("");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      window.prompt("Copy this article link", item.url);
     }
   };
 
@@ -126,16 +147,16 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
             <h1>Stay ahead of AI.<br/><span>Skip the noise.</span></h1>
             <p>One place for important AI launches, research and business moves — explained in plain English, with links to the original stories.</p>
             <div className="heroStats">
-              <span><strong>{sources.length}</strong> sources configured</span>
+              <span><strong>{availableCount}</strong> sources with recent AI stories</span>
               <span className="statDivider" aria-hidden="true" />
-              <span>Updated every 15 minutes</span>
+              <span>Checked periodically · last check {refreshedLabel}</span>
             </div>
             <a className="primaryButton" href="#feed">Explore the news <span aria-hidden="true">↓</span></a>
           </div>
           <div className="dailyBrief">
             <div className="dailyBriefTop"><span className="spark">✳</span><span>THE QUICK BRIEF</span><span className="briefPill">TOP 3</span></div>
             <h2>Worth knowing</h2>
-            <p className="briefIntro">A quick scan of the biggest updates in the feed.</p>
+            <p className="briefIntro">A quick scan of noteworthy recent updates.</p>
             {briefing.length ? <div className="briefItems">{briefing.map((item, index) =>
               <a key={item.id} className="briefItem" href={item.url} target="_blank" rel="noopener noreferrer">
                 <span className="briefIndex">0{index + 1}</span>
@@ -143,7 +164,7 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
                 <span className="briefArrow" aria-hidden="true">↗</span>
               </a>
             )}</div> : <div className="briefEmpty">We couldn’t load the latest feeds right now. Please refresh shortly or visit the original sources below.</div>}
-            <span className="briefNote">Ranked by estimated impact, not editorial verification.</span>
+            <span className="briefNote">Highlights are selected by automated rules, not editorial fact-checking.</span>
           </div>
         </section>
 
@@ -151,13 +172,14 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
           <div className="shell feedShell">
             <div className="feedHeading">
               <div><div className="sectionEyebrow">THE FEED</div><h2>What’s happening in AI</h2><p>Browse, search, and save the updates that matter to you.</p></div>
-              <div className="feedSummary"><span className="statusDot" /> {signals.length ? signals.length + " recent updates" : "Checking sources"}</div>
+              <div className="feedSummary"><span className={signals.length ? "statusDot" : "statusDot offline"} /> {signals.length ? signals.length + " recent updates" : "News temporarily unavailable"}</div>
             </div>
             <div className="filters" role="group" aria-label="Filter news">
               {filters.map((name) => <button key={name} className={filter === name ? "filter active" : "filter"} type="button" aria-pressed={filter === name} onClick={() => selectFilter(name)}>{name === "Saved" ? "☆ " : ""}{name}</button>)}
             </div>
             <div className="toolbar">
               <label className="searchBox"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setVisible(12); }} placeholder="Search news, companies or topics" aria-label="Search news" /></label>
+              <label className="publisherBox"><span>Publisher</span><select value={sourceKey} onChange={(event) => { setSourceKey(event.target.value); setVisible(12); }} aria-label="Filter by publisher"><option value="all">All publishers</option>{activePublishers.map((source) => <option value={source.key} key={source.key}>{source.name}</option>)}</select></label>
               <label className="sortBox"><span>Sort by</span><select value={order} onChange={(event) => setOrder(event.target.value as SortOrder)} aria-label="Sort news"><option value="latest">Newest first</option><option value="impact">Most important</option></select></label>
             </div>
 
@@ -179,8 +201,8 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
                       <div className="storyBottom">
                         <span className="categoryTag">{item.category}</span>
                         <div className="storyActions">
-                          <button type="button" onClick={() => toggleSaved(item.id)} className={saved.includes(item.id) ? "action saved" : "action"} aria-label={saved.includes(item.id) ? "Remove bookmark" : "Save article"} title={saved.includes(item.id) ? "Saved" : "Save article"}>{saved.includes(item.id) ? "★ Saved" : "☆ Save"}</button>
-                          <button type="button" onClick={() => share(item)} className="action" aria-label={"Copy link to " + item.title}>{copyState === item.id ? "✓ Copied" : "↗ Share"}</button>
+                          <button type="button" onClick={() => toggleSaved(item)} className={saved.includes(item.id) ? "action saved" : "action"} aria-label={saved.includes(item.id) ? "Remove bookmark" : "Save article"} title={saved.includes(item.id) ? "Saved" : "Save article"}>{saved.includes(item.id) ? "★ Saved" : "☆ Save"}</button>
+                          <button type="button" onClick={() => share(item)} className="action" aria-label={"Share " + item.title}>{copyState === item.id ? "✓ Copied" : "↗ Share"}</button>
                         </div>
                       </div>
                     </div>
@@ -196,7 +218,7 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
                   <button type="button" onClick={() => selectFilter("Important")}><span>✦ Big developments</span><span>→</span></button>
                   <button type="button" onClick={() => selectFilter("Africa")}><span>◉ AI across Africa</span><span>{africaCount} →</span></button>
                   <button type="button" onClick={() => selectFilter("Tools")}><span>⌘ Builders & tools</span><span>→</span></button>
-                  <button type="button" onClick={() => selectFilter("Saved")}><span>☆ Your saved stories</span><span>{saved.length} →</span></button>
+                  <button type="button" onClick={() => selectFilter("Saved")}><span>☆ Your saved stories</span><span>{savedStories.length || saved.length} →</span></button>
                 </div>
                 <div className="sideCard lightSide">
                   <div className="sideKicker">STAY IN THE LOOP</div>
@@ -205,17 +227,17 @@ export default function SignalReader({ signals, sources }: { signals: SignalItem
                   <a className="sideRssLink" href="/api/rss" target="_blank" rel="noreferrer">Open RSS feed ↗</a>
                   {installPrompt ? <button className="installButton" type="button" onClick={async () => { await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null); }}>Install NileSignal app ↓</button> : null}
                 </div>
-                {latest ? <div className="sideFoot">Latest indexed article<br/><strong>{timeAgo(latest.publishedAt)}</strong></div> : null}
+                {latest ? <div className="sideFoot">Latest indexed article<br/><strong>{timeAgo(latest.publishedAt)}</strong><br/>Feed last checked: {refreshedLabel}</div> : null}
               </aside>
             </div>
           </div>
         </section>
 
         <section className="sourcesSection shell" id="sources">
-          <div className="sourcesIntro"><div><div className="sectionEyebrow">TRANSPARENT BY DESIGN</div><h2>Real sources. Original stories.</h2><p>NileSignal brings together company announcements, research, reporting and African technology coverage. We show the publisher so you can check the facts yourself.</p></div><span className="sourcesCount">{sources.length}<small>FEEDS CONFIGURED</small></span></div>
-          <details className="sourcesDetails"><summary>See our sources <span aria-hidden="true">⌄</span></summary><div className="sourceList">{sources.map((source) => <a href={source.homepage} target="_blank" rel="noopener noreferrer" key={source.key}><span>{source.name}</span><small>{source.region === "africa" ? "Africa" : source.type === "official" ? "Official" : source.type === "research" ? "Research" : "News"} ↗</small></a>)}</div></details>
+          <div className="sourcesIntro"><div><div className="sectionEyebrow">TRANSPARENT BY DESIGN</div><h2>Real sources. Original stories.</h2><p>NileSignal brings together company announcements, research, reporting and African technology coverage. We show the publisher so you can check the facts yourself.</p></div><span className="sourcesCount">{availableCount}<small>WITH RECENT AI STORIES</small></span></div>
+          <details className="sourcesDetails"><summary>See our sources <span aria-hidden="true">⌄</span></summary><div className="sourceList">{sources.map((source) => <a href={source.homepage} target="_blank" rel="noopener noreferrer" key={source.key}><span>{source.name}</span><small>{reports.find((report) => report.key === source.key)?.status === "error" ? "Unavailable" : reports.find((report) => report.key === source.key)?.status === "empty" ? "No recent AI news" : source.region === "africa" ? "Africa" : source.type === "official" ? "Official" : source.type === "research" ? "Research" : "News"} ↗</small></a>)}</div></details>
         </section>
-        <section className="disclaimer shell">Summaries and impact labels are automated estimates, not independent fact checks or investment advice. Some publisher feeds may temporarily be unavailable.</section>
+        <section className="disclaimer shell">Descriptions come from publishers. Categories, highlights, and impact explanations are automated estimates, not independent fact checks or investment advice. Of {sources.length} configured feeds, {availableCount} currently have recent AI updates. Some sources may be temporarily unavailable.</section>
       </main>
       <footer className="footer"><div className="shell footerInner"><div className="footerBrand"><span className="brandIcon mini">N</span><div><strong>NileSignal</strong><small>AI news without the noise.</small></div></div><div className="footerLinks"><a href="https://nileai.solutions" target="_blank" rel="noopener noreferrer">Nile AI Solutions ↗</a><a href="mailto:info@nileai.solutions?subject=NileSignal%20feedback">Send feedback</a><a href="/api/rss">RSS</a></div><span className="copyright">© {new Date().getFullYear()} Nile AI Solutions</span></div></footer>
     </div>
