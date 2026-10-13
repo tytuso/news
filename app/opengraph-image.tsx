@@ -17,7 +17,7 @@ export default function Image() {
         <div style={{ color: "#c8cee9", fontSize: 25, marginTop: 20 }}>AI news made simple · Powered by Nile AI Solutions</div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 23, color: "#a9b3d2" }}>
-        <span>signal.nileai.solutions</span><span>◉ Global + Africa</span>
+        <span>signal.nileai.solutions</span><span>Global + Africa</span>
       </div>
     </div>, size
   );
