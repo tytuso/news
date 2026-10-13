@@ -87,7 +87,7 @@ export default function SignalReader({ signals, sources, reports, refreshedAt }:
   const africaCount = signals.filter((item) => item.africaAngle).length;
   const availableCount = reports.filter((item) => item.status === "ok").length;
   const activePublishers = sources.filter((source) => reports.some((report) => report.key === source.key && report.status === "ok"));
-  const refreshedLabel = new Date(refreshedAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const refreshedLabel = new Date(refreshedAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
   const selectFilter = (value: FeedFilter) => { setFilter(value); setVisible(12); };
   const toggleSaved = (item: SignalItem) => {
     const removing = saved.includes(item.id);
