@@ -9,8 +9,10 @@ export async function POST(request: NextRequest) {
   try {
     if (Number(request.headers.get("content-length") || 0) > 4000) return NextResponse.json({ error: "Invalid request." }, { status: 413 });
     const data = await request.json() as Record<string, unknown>;
-    const email = safeEmail(data.email), name = safeName(data.name);
-    if (!email || !name || data.consent !== true) return NextResponse.json({ error: "Enter a valid name and email and agree to receive the newsletter." }, { status: 400 });
+    const email = safeEmail(data.email);
+    const enteredName = typeof data.name === "string" ? data.name.trim() : "";
+    const name = enteredName ? safeName(enteredName) : "there";
+    if (!email || !name || data.consent !== true) return NextResponse.json({ error: "Enter a valid email and agree to receive the newsletter." }, { status: 400 });
     // Honeypot; a filled field signals a bot. Replies are intentionally generic.
     if (data.company) return NextResponse.json({ ok: true, message: "Please check your email to confirm." });
     const ip = request.headers.get("x-real-ip") || request.headers.get("x-vercel-forwarded-for") || "anonymous";

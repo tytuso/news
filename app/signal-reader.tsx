@@ -131,6 +131,7 @@ export default function SignalReader({ signals, sources, reports, refreshedAt, n
             <span>Nile<span className="brandBold">Signal</span><small>by Nile AI</small></span>
           </a>
           <nav className="headerNav" aria-label="Main navigation">
+            <a href="#newsletter">Daily emails</a>
             <a href="#feed">Latest news</a>
             <a href="#sources">Our sources</a>
           </nav>
@@ -142,6 +143,7 @@ export default function SignalReader({ signals, sources, reports, refreshedAt, n
       </header>
 
       <main>
+        <NewsletterSignup enabled={newsletterReady} />
         <section className="hero shell">
           <div className="heroText">
             <div className="eyebrow"><span className="statusDot" /> Your daily AI news, simplified</div>
@@ -169,7 +171,6 @@ export default function SignalReader({ signals, sources, reports, refreshedAt, n
           </div>
         </section>
 
-        <NewsletterSignup enabled={newsletterReady} />
         <section className="feedSection" id="feed">
           <div className="shell feedShell">
             <div className="feedHeading">
