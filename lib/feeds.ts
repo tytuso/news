@@ -95,7 +95,7 @@ async function buildSnapshot(): Promise<FeedSnapshot> {
   return { signals, sources: batches.map((batch) => batch.report), generatedAt: new Date(now).toISOString() };
 }
 // Shared cache prevents repeated downloads and XML parsing for each visitor.
-export const getFeedSnapshot = unstable_cache(buildSnapshot, ["nilesignal-feed-v3"], { revalidate: 900 });
+export const getFeedSnapshot = unstable_cache(buildSnapshot, ["nilesignal-feed-v4-clean-sources"], { revalidate: 900 });
 export async function getSignals(limit = 90) {
   const snapshot = await getFeedSnapshot();
   return snapshot.signals.slice(0, limit);
