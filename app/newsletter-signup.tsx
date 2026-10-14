@@ -22,12 +22,12 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, consent, company })
       });
-      const result = await response.json() as { message?: string; error?: string };
+      const result = await response.json() as { message?: string; error?: string; status?: string };
       setMessage({
         ok: response.ok,
         text: result.message || result.error || (response.ok ? "Check your inbox to confirm." : "Please try again.")
       });
-      if (response.ok) {
+      if (response.ok && result.status !== "confirmation_recent") {
         setName("");
         setEmail("");
         setConsent(false);

@@ -69,6 +69,39 @@ export async function brevo(path: string, method = "GET", body?: unknown) {
   if (response.status === 204) return {};
   return response.json();
 }
+
+/**
+ * A contact in Brevo is not necessarily a NileSignal subscriber.
+ * Only membership of our own list counts. Respect Brevo's blocklist/
+ * unsubscribe status instead of accidentally resubscribing them.
+ */
+export type NewsletterMembership = "subscribed" | "not_subscribed" | "opted_out";
+
+export async function getNewsletterMembership(email: string): Promise<NewsletterMembership> {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("Email provider not configured");
+  const response = await fetch("https://api.brevo.com/v3/contacts/" + encodeURIComponent(email), {
+    method: "GET",
+    headers: { "api-key": apiKey, "accept": "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000)
+  });
+  if (response.status === 404) return "not_subscribed";
+  if (!response.ok) {
+    // Do not log the URL, which contains the subscriber's email.
+    console.error("Newsletter contact lookup unavailable", response.status);
+    throw new Error("Email provider temporarily unavailable");
+  }
+  const contact = await response.json() as {
+    listIds?: number[];
+    listUnsubscribed?: number[];
+    emailBlacklisted?: boolean;
+  };
+  const listId = brevoListId();
+  if (contact.emailBlacklisted || contact.listUnsubscribed?.includes(listId)) return "opted_out";
+  return contact.listIds?.includes(listId) ? "subscribed" : "not_subscribed";
+}
+
 export async function memberCount(): Promise<number> {
   const data = await brevo("/contacts/lists/" + brevoListId() + "/contacts?limit=1&offset=0") as { count?: number };
   if (typeof data.count !== "number") throw new Error("Newsletter list unavailable");
