@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { unstable_cache } from "next/cache";
 
 export const NEWSLETTER_ORIGIN = "https://signal.nileai.solutions";
 export const MAX_FREE_SUBSCRIBERS = 200;
@@ -88,3 +89,11 @@ export async function sendConfirmation(name: string, email: string, token: strin
     htmlContent
   });
 }
+
+// Cached provider check controls public form availability without exposing credentials.
+// Cache failures as well, so a Brevo outage does not trigger a call per visitor.
+export const newsletterProviderReady = unstable_cache(async (): Promise<boolean> => {
+  if (!newsletterConfigured()) return false;
+  try { await memberCount(); return true; }
+  catch { return false; }
+}, ["nilesignal-brevo-provider-ready-v2"], { revalidate: 120 });
