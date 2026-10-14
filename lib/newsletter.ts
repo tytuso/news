@@ -116,11 +116,14 @@ export async function sendConfirmation(name: string, email: string, token: strin
     '<p style="font-size:15px;line-height:1.8">Hi ' + escapeHtml(name) + ', thanks for signing up. Please confirm your email to receive one concise AI news digest each day.</p>' +
     '<a href="' + escapeHtml(link) + '" style="display:inline-block;margin:18px 0;padding:15px 22px;background:#5145e8;color:white;text-decoration:none;border-radius:10px;font-weight:bold">Confirm subscription</a>' +
     '<p style="font-size:12px;color:#788199">If you did not request this, just ignore this message. The link expires in 7 days.</p></td></tr></table></body></html>';
-  await brevo("/smtp/email", "POST", {
+  const outcome = await brevo("/smtp/email", "POST", {
     sender: { name: "NileSignal", email: process.env.BREVO_FROM_EMAIL },
     to: [{ email, name }], subject: "Confirm your NileSignal daily AI newsletter",
-    htmlContent
-  });
+    htmlContent,
+    tags: ["nilesignal-confirmation"]
+  }) as { messageId?: string };
+  if (!outcome.messageId || outcome.messageId.length > 255) throw new Error("Email provider did not return tracking information");
+  return outcome.messageId;
 }
 
 // Cached provider check controls public form availability without exposing credentials.
@@ -130,3 +133,65 @@ export const newsletterProviderReady = unstable_cache(async (): Promise<boolean>
   try { await memberCount(); return true; }
   catch { return false; }
 }, ["nilesignal-brevo-provider-ready-v2"], { revalidate: 120 });
+
+/** A signed, short-lived receipt tracks only one confirmation message. No email is exposed. */
+export function signDeliveryReceipt(messageId: string): string {
+  const secret = process.env.NEWSLETTER_SECRET;
+  if (!secret) throw new Error("Tracking is not configured");
+  const json = JSON.stringify({ messageId, expires: Date.now() + 24 * 60 * 60 * 1000 });
+  const body = Buffer.from(json).toString("base64url");
+  const signature = createHmac("sha256", secret).update("delivery." + body).digest("base64url");
+  return body + "." + signature;
+}
+
+export function verifyDeliveryReceipt(receipt: unknown): string | null {
+  const secret = process.env.NEWSLETTER_SECRET;
+  if (!secret || typeof receipt !== "string" || receipt.length > 650) return null;
+  const parts = receipt.split(".");
+  if (parts.length !== 2) return null;
+  const [body, signature] = parts;
+  const expected = createHmac("sha256", secret).update("delivery." + body).digest();
+  const actual = Buffer.from(signature, "base64url");
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as {
+      messageId?: string; expires?: number;
+    };
+    return typeof payload.messageId === "string" && payload.messageId.length > 0 &&
+      payload.messageId.length <= 255 && typeof payload.expires === "number" &&
+      payload.expires > Date.now() ? payload.messageId : null;
+  } catch { return null; }
+}
+
+export type DeliveryState = "processing" | "delayed" | "delivered" | "failed";
+export async function getBrevoDeliveryState(messageId: string): Promise<{
+  state: DeliveryState; message: string;
+}> {
+  // Query only the message that this user initiated; never expose recipient, subject or log IDs.
+  const result = await brevo(
+    "/smtp/statistics/events?days=2&limit=40&messageId=" + encodeURIComponent(messageId)
+  ) as { events?: Array<{ event?: string; date?: string; reason?: string; messageId?: string }> };
+  const events = (result.events || []).filter((event) => event.messageId === messageId);
+  events.sort((a,b) => (Date.parse(b.date || "") || 0) - (Date.parse(a.date || "") || 0));
+  const recent = events[0];
+  if (!recent) {
+    return { state: "processing", message: "Brevo accepted the request, but delivery has not been confirmed yet. Check again shortly." };
+  }
+  const kind = String(recent.event || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (kind === "delivered" || kind === "opened" || kind === "click" || kind === "clicked") {
+    return { state: "delivered", message: "The recipient mail server accepted the email. Check your inbox, All Mail and Spam for NileSignal." };
+  }
+  if (["hardbounce","invalid","invalidemail","blocked","error","spam"].includes(kind)) {
+    const reason = (recent.reason || "").toLowerCase();
+    const explanation = /sender|authenticate|dkim|dmarc|signature|not valid/.test(reason)
+      ? "Brevo rejected the sender. Please contact NileSignal support."
+      : /unknown user|invalid recipient|recipient address|no such user|mailbox/.test(reason)
+      ? "The recipient mailbox may be invalid or unavailable. Check the address before trying again."
+      : "Brevo could not deliver this confirmation. Review the address or contact NileSignal support.";
+    return { state: "failed", message: explanation };
+  }
+  if (["deferred","softbounce"].includes(kind)) {
+    return { state: "delayed", message: "Brevo reports the email is delayed. Wait a little before requesting another confirmation." };
+  }
+  return { state: "processing", message: "Brevo is still processing the email. Check again shortly." };
+}

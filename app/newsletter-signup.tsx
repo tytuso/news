@@ -7,6 +7,9 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [deliveryMessage, setDeliveryMessage] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function subscribe(event: FormEvent<HTMLFormElement>) {
@@ -15,6 +18,8 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
 
     setBusy(true);
     setMessage(null);
+    setReceipt(null);
+    setDeliveryMessage(null);
     const company = String(new FormData(event.currentTarget).get("company") || "");
     try {
       const response = await fetch("/api/newsletter/subscribe", {
@@ -22,7 +27,8 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, consent, company })
       });
-      const result = await response.json() as { message?: string; error?: string; status?: string };
+      const result = await response.json() as { message?: string; error?: string; status?: string; receipt?: string };
+      if (response.ok && result.status === "confirmation_requested" && result.receipt) setReceipt(result.receipt);
       setMessage({
         ok: response.ok,
         text: result.message || result.error || (response.ok ? "Check your inbox to confirm." : "Please try again.")
@@ -36,6 +42,24 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
       setMessage({ ok: false, text: "Couldn't connect. Please try again." });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function checkDelivery() {
+    if (!receipt || checking) return;
+    setChecking(true);
+    try {
+      const response = await fetch("/api/newsletter/delivery-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receipt })
+      });
+      const result = await response.json() as { state?: string; message?: string; error?: string };
+      setDeliveryMessage(result.message || result.error || "No new status available.");
+    } catch {
+      setDeliveryMessage("We couldn't reach Brevo to check delivery. Try again later.");
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -85,6 +109,12 @@ export default function NewsletterSignup({ enabled }: { enabled: boolean }) {
             </button>
 
             {message ? <p role="status" className={message.ok ? "newsletterStatus ok" : "newsletterStatus error"}>{message.text}</p> : null}
+            {receipt ? <div className="newsletterDelivery">
+              <button type="button" onClick={checkDelivery} disabled={checking}>
+                {checking ? "Checking Brevo…" : "Check email delivery status ↗"}
+              </button>
+              {deliveryMessage ? <p role="status">{deliveryMessage}</p> : null}
+            </div> : null}
             {!enabled && <p role="status" className="newsletterUnavailable">Email signup is temporarily unavailable.</p>}
           </form>
         </div>

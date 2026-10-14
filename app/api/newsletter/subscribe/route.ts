@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getNewsletterMembership, memberCount, newsletterConfigured, safeEmail, safeName,
-  sendConfirmation, signConsent, MAX_FREE_SUBSCRIBERS
+  sendConfirmation, signConsent, signDeliveryReceipt, MAX_FREE_SUBSCRIBERS
 } from "../../../../lib/newsletter";
 
 export const runtime = "nodejs";
@@ -71,11 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Brevo's 201/202 confirms acceptance for processing, not inbox delivery.
-    await sendConfirmation(name, email, signConsent(name, email));
+    const messageId = await sendConfirmation(name, email, signConsent(name, email));
     rateLimits.set(emailKey, { count: 1, until: now + HOUR, lastEmailAt: now });
     return NextResponse.json({
       ok: true, status: "confirmation_requested",
-      message: "Confirmation email requested! Check your inbox and Spam. Open the link to finish subscribing."
+      message: "Brevo accepted your confirmation request. Check your inbox; delivery may take a few minutes.",
+      receipt: signDeliveryReceipt(messageId)
     });
   } catch {
     return NextResponse.json({
