@@ -5,15 +5,15 @@
 NileSignal is a free mobile-first AI news reader built with Next.js. It collects RSS feeds from AI labs, researchers, developers and African technology publishers.
 
 ## Daily email newsletter
-The free daily email briefing uses **Brevo Marketing Campaigns**, not promotional content sent via transactional email. It includes 5 recent stories, brief context and original links, with Brevo's native unsubscribe link.
+The free daily email briefing uses **Brevo Marketing Campaigns**, not promotional content sent via transactional email. It features up to 10 important recent stories (depending on availability), concise context, clear source links, and a prominent footer link to signal.nileai.solutions, with Brevo's native unsubscribe link.
 
 - Name/email signup with explicit, unchecked-by-default consent; contacts are added immediately to Brevo List #5 without a confirmation email
 - Email is stored in a dedicated **Brevo contact list**, not in your website's database
 - Native unsubscribe page managed by Brevo, no login required
 - Free newsletter audience capped at **200 subscribed contacts** to remain below Brevo Free's current 300 emails/day allowance
 - Vercel Cron invokes GET /api/cron/daily-news at **06:00 UTC daily (09:00 Africa/Kampala)**; Hobby schedules are approximate within the hour
-- Campaign name includes UTC date, and duplicates are checked before creation, preventing most accidental double sending
-- If no recent news or subscribers exist, no campaign is sent
+- Campaign uses the Uganda local date, and duplicates are checked before creation, preventing most accidental double sending
+- If no recent news or subscribers exist, no campaign is sent; the story selector uses the last 72 hours, prioritizes estimated impact, and limits any one publisher to two stories
 - When the email provider is not configured, the UI displays a clear **coming soon** state rather than a broken form
 
 ### Activate the newsletter
@@ -31,6 +31,9 @@ The free daily email briefing uses **Brevo Marketing Campaigns**, not promotiona
 
 ### Privacy
 Brevo stores names and email addresses as soon as the visitor explicitly consents and clicks Subscribe; no email verification is performed. Subscribers can unsubscribe through each campaign's built-in unsubscribe link or contact info@nileai.solutions. See /privacy.
+
+### Preview before sending
+Visit https://signal.nileai.solutions/newsletter/preview to view a browser rendering of the same email template and selected stories **without sending any messages**. For an actual delivery test, create a draft campaign in Brevo and use its **Send test** action to one chosen email address. A preview does not prove deliverability; check the first scheduled campaign in Brevo after 9 AM Uganda time.
 
 ## Reader features
 - 20 source feeds configured; each fetched independently
