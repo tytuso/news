@@ -80,10 +80,3 @@
 @media(max-width:700px){.newsletterSection{width:min(100% - 32px,1140px);padding:33px 26px;border-radius:22px}.newsletterInner{grid-template-columns:1fr;gap:25px}.newsletterPitch h2{font-size:clamp(36px,8vw,48px);margin:16px 0 12px}.newsletterPitch p{font-size:14px}.newsletterFreeLabel{margin-top:14px}.newsletterSignupCard{padding:23px}.newsletterPulse{left:-280px}.hero{padding-top:51px}}
 @media(max-width:420px){.newsletterSection{width:calc(100% - 24px);margin-top:12px;padding:27px 18px;border-radius:19px}.newsletterPitch h2{font-size:36px}.newsletterPitch p{font-size:13px}.newsletterSignupCard{padding:20px 17px}.newsletterInputGroup input{height:48px}.newsletterEyebrow{font-size:10px}.hero{padding-top:43px}.newsletterStandalone{padding:56px 16px}.newsletterStandaloneCard{padding:27px}.newsletterStandaloneCard h1{font-size:31px}}
 @media(prefers-reduced-motion:reduce){.newsletterSubscribe{transition:none}.newsletterSubscribe:not(:disabled):hover{transform:none}}
-
-/* Confirmation-delivery tracking: quiet utility action, not another signup field. */
-.newsletterDelivery{display:flex;flex-direction:column;align-items:stretch;gap:8px}
-.newsletterDelivery button{display:inline-flex;align-self:flex-start;border:0;background:#eeecff;border-radius:9px;color:#5043cf;padding:9px 13px;font-size:12px;font-weight:780}
-.newsletterDelivery button:hover{background:#e2ddff}
-.newsletterDelivery button:disabled{opacity:.65;cursor:wait}
-.newsletterDelivery p{margin:0;color:#535e76;font-size:12px;line-height:1.55}

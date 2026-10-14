@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getNewsletterMembership, memberCount, newsletterConfigured, safeEmail, safeName,
-  sendConfirmation, signConsent, signDeliveryReceipt, MAX_FREE_SUBSCRIBERS
+  brevo, brevoListId, MAX_FREE_SUBSCRIBERS
 } from "../../../../lib/newsletter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RateEntry = { until: number; count: number; lastEmailAt?: number };
+type RateEntry = { until: number; count: number };
 const rateLimits = new Map<string, RateEntry>();
 const HOUR = 60 * 60 * 1000;
-const RESEND_DELAY = 10 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   if (!newsletterConfigured()) {
@@ -26,13 +25,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Enter your name, a valid email address, and agree to the newsletter." }, { status: 400 });
     }
     // Leave this fake field unfilled. Helps avoid bot-triggered confirmation emails.
-    if (data.company) return NextResponse.json({ ok: true, status: "check_inbox", message: "Please check your inbox for the confirmation email." });
+    if (data.company) return NextResponse.json({ ok: true, status: "subscribed", message: "Thanks for joining NileSignal Daily!" });
 
     const ip = (request.headers.get("x-real-ip") || request.headers.get("x-forwarded-for")?.split(",")[0] || "anonymous").trim();
     const now = Date.now();
     if (rateLimits.size > 6000) rateLimits.clear();
     const ipKey = "ip:" + ip;
-    const emailKey = "email:" + ip + ":" + email;
     const currentIp = rateLimits.get(ipKey);
     if (currentIp && currentIp.until > now && currentIp.count >= 20) {
       return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
@@ -56,31 +54,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const previous = rateLimits.get(emailKey);
-    if (previous?.lastEmailAt && previous.lastEmailAt + RESEND_DELAY > now) {
-      return NextResponse.json({
-        ok: true, status: "confirmation_recent",
-        message: "A confirmation email was requested recently. Check your inbox or Spam, or try again in 10 minutes."
-      });
-    }
-
     if (await memberCount() >= MAX_FREE_SUBSCRIBERS) {
       return NextResponse.json({
         error: "Our free newsletter list is currently full. You can still read all the news on NileSignal."
       }, { status: 409 });
     }
 
-    // Brevo's 201/202 confirms acceptance for processing, not inbox delivery.
-    const messageId = await sendConfirmation(name, email, signConsent(name, email));
-    rateLimits.set(emailKey, { count: 1, until: now + HOUR, lastEmailAt: now });
-    return NextResponse.json({
-      ok: true, status: "confirmation_requested",
-      message: "Brevo accepted your confirmation request. Check your inbox; delivery may take a few minutes.",
-      receipt: signDeliveryReceipt(messageId)
+    // Single opt-in: only add contacts after an explicit, unchecked-by-default consent box.
+    // Never reset a blocklist or unsubscribe flag; getNewsletterMembership checks those first.
+    await brevo("/contacts", "POST", {
+      email,
+      attributes: { FIRSTNAME: name.split(" ")[0] },
+      listIds: [brevoListId()],
+      updateEnabled: true
     });
+    return NextResponse.json({
+      ok: true,
+      status: "subscribed",
+      message: "You're subscribed to NileSignal Daily! Look out for your first daily AI briefing."
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({
-      error: "We could not request a confirmation email right now. Please try again later."
+      error: "We couldn't complete your subscription right now. Please try again later."
     }, { status: 503 });
   }
 }

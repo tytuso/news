@@ -7,10 +7,10 @@ NileSignal is a free mobile-first AI news reader built with Next.js. It collects
 ## Daily email newsletter
 The free daily email briefing uses **Brevo Marketing Campaigns**, not promotional content sent via transactional email. It includes 5 recent stories, brief context and original links, with Brevo's native unsubscribe link.
 
-- Name/email signup, explicit consent, and one-time email confirmation before adding the subscriber to the mailing list
+- Name/email signup with explicit, unchecked-by-default consent; contacts are added immediately to Brevo List #5 without a confirmation email
 - Email is stored in a dedicated **Brevo contact list**, not in your website's database
 - Native unsubscribe page managed by Brevo, no login required
-- Free newsletter audience capped at **200 subscribed contacts** to leave room below Brevo Free's 300 sends/day for opt-in confirmations
+- Free newsletter audience capped at **200 subscribed contacts** to remain below Brevo Free's current 300 emails/day allowance
 - Vercel Cron invokes GET /api/cron/daily-news at **06:00 UTC daily (09:00 Africa/Kampala)**; Hobby schedules are approximate within the hour
 - Campaign name includes UTC date, and duplicates are checked before creation, preventing most accidental double sending
 - If no recent news or subscribers exist, no campaign is sent
@@ -25,12 +25,12 @@ The free daily email briefing uses **Brevo Marketing Campaigns**, not promotiona
    - BREVO_FROM_EMAIL = verified sender email, for example info@nileai.solutions
 4. Ensure NEWSLETTER_SECRET and CRON_SECRET exist (both must be long, random secrets and never added to client-side variables).
 5. Redeploy production so the new variables are available; after deployment the signup form automatically becomes active.
-6. Test signup with your own email, confirm it, and verify the contact appears in the right Brevo list.
+6. Test signup using your own email and check that it appears in the right Brevo list immediately. A confirmation email is not sent.
 
-**No email is sent until Brevo is configured.** Email quota and account-review restrictions apply. Signup endpoint has a honeypot and best-effort instance-local throttling; for heavy traffic, add a durable rate limiter or Cloudflare Turnstile.
+**No confirmation email is sent during signup.** Email quota and account-review restrictions still apply to the daily newsletter. Single opt-in has greater risk of invalid or malicious signups than double opt-in; the form uses explicit consent, a honeypot, and best-effort instance-local throttling. Before promoting heavily on YouTube, add durable rate limits and a bot challenge (for example Cloudflare Turnstile) to guard deliverability.
 
 ### Privacy
-Brevo stores names and email addresses only after confirmation. Subscribers can unsubscribe through each campaign's built-in unsubscribe link or contact info@nileai.solutions. See /privacy.
+Brevo stores names and email addresses as soon as the visitor explicitly consents and clicks Subscribe; no email verification is performed. Subscribers can unsubscribe through each campaign's built-in unsubscribe link or contact info@nileai.solutions. See /privacy.
 
 ## Reader features
 - 20 source feeds configured; each fetched independently
