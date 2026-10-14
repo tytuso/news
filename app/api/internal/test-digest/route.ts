@@ -2,14 +2,13 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getFeedSnapshot } from "../../../../lib/feeds";
 import { digestDay, renderDailyDigest, selectDailyStories } from "../../../../lib/daily-digest";
-import { brevo, brevoListId } from "../../../../lib/newsletter";
+import { brevo } from "../../../../lib/newsletter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const TEST_EMAIL = "opiotitus333@gmail.com";
-const TEST_CAMPAIGN = "NileSignal INTERNAL TEST 2026-10-14 Top 10";
 const EXPIRES_AT = Date.parse("2026-10-15T00:00:00Z");
 
 export async function GET(request: NextRequest) {
@@ -26,48 +25,28 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Never use sendNow: this test only targets the one address below.
-    const recentCampaigns = await brevo("/emailCampaigns?type=classic&limit=100&offset=0") as {
-      campaigns?: Array<{ id: number; name: string }>
-    };
-    const existing = recentCampaigns.campaigns?.find((item) => item.name === TEST_CAMPAIGN);
-    if (existing) {
-      return NextResponse.json({ status: "already_attempted", campaignId: existing.id });
-    }
-
+    // This is a single-recipient transactional test, not a campaign broadcast.
     const { signals } = await getFeedSnapshot();
     const stories = selectDailyStories(signals);
     if (stories.length < 1) {
       return NextResponse.json({ status: "no_recent_stories" }, { status: 503 });
     }
 
-    const day = digestDay();
-    const campaign = await brevo("/emailCampaigns", "POST", {
-      name: TEST_CAMPAIGN,
-      type: "classic",
-      subject: "[TEST] NileSignal Daily — " + stories.length + " important AI stories",
+    const result = await brevo("/smtp/email", "POST", {
       sender: { name: "NileSignal", email: process.env.BREVO_FROM_EMAIL },
-      recipients: { listIds: [brevoListId()] },
-      htmlContent: renderDailyDigest(stories, day),
-      previewText: "Test of the NileSignal top stories briefing — not the daily send",
-      tag: "NileSignal Testing"
-    }) as { id?: number };
+      to: [{ email: TEST_EMAIL, name: "NileSignal tester" }],
+      subject: "[TEST] NileSignal Daily — " + stories.length + " important AI stories",
+      htmlContent: renderDailyDigest(stories, digestDay(), true),
+      tags: ["nilesignal-top10-test"]
+    }) as { messageId?: string };
 
-    if (!Number.isSafeInteger(campaign.id) || !campaign.id) {
-      throw new Error("Draft was not created");
-    }
-
-    // Brevo explicitly supports sendTest to a specified emailTo array. No mailing list blast.
-    await brevo("/emailCampaigns/" + campaign.id + "/sendTest", "POST", {
-      emailTo: [TEST_EMAIL]
-    });
-
+    if (!result.messageId) throw new Error("No messageId from provider");
     return NextResponse.json({
       status: "test_accepted_by_brevo",
-      campaignId: campaign.id,
       recipient: TEST_EMAIL,
       stories: stories.length,
-      note: "Brevo accepted the test. Inbox delivery is not yet confirmed."
+      messageId: result.messageId,
+      note: "Brevo accepted one test email. Delivery will be verified separately."
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({
