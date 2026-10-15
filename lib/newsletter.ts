@@ -195,3 +195,30 @@ export async function getBrevoDeliveryState(messageId: string): Promise<{
   }
   return { state: "processing", message: "Brevo is still processing the email. Check again shortly." };
 }
+
+
+/** Signed opt-out token tied to one subscriber address. GET never unsubscribes. */
+export function newsletterUnsubscribeToken(email: string): string {
+  const key = process.env.NEWSLETTER_SECRET;
+  if (!key) throw new Error("Missing newsletter secret");
+  const encoded = Buffer.from(JSON.stringify({ email, scope: "nilesignal-unsubscribe-v1" })).toString("base64url");
+  return encoded + "." + createHmac("sha256", key).update("unsubscribe." + encoded).digest("base64url");
+}
+export function newsletterUnsubscribeUrl(email: string): string {
+  return NEWSLETTER_ORIGIN + "/newsletter/unsubscribe?token=" +
+    encodeURIComponent(newsletterUnsubscribeToken(email));
+}
+export function verifyNewsletterUnsubscribeToken(token: unknown): string | null {
+  const secret = process.env.NEWSLETTER_SECRET;
+  if (typeof token !== "string" || token.length > 500 || !secret) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const expected = createHmac("sha256", secret).update("unsubscribe." + parts[0]).digest();
+  let received: Buffer;
+  try { received = Buffer.from(parts[1], "base64url"); } catch { return null; }
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) return null;
+  try {
+    const obj = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8")) as { email?: unknown; scope?: string };
+    return obj.scope === "nilesignal-unsubscribe-v1" ? safeEmail(obj.email) : null;
+  } catch { return null; }
+}

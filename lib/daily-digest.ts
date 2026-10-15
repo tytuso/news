@@ -52,8 +52,8 @@ function linkTo(value: string) {
 /** Render email-friendly HTML: tables, inline styles, no external fonts or images. */
 export function renderDailyDigest(stories: SignalItem[], day: string, preview = false): string {
   const count = stories.length;
-  const unsubscribeLink = preview ? NEWSLETTER_ORIGIN + "/privacy" : "{{ unsubscribe }}";
-  const greeting = preview ? "Hello, AI explorer." : "Hello, {{ contact.FIRSTNAME }}.";
+  const unsubscribeLink = preview ? NEWSLETTER_ORIGIN + "/privacy" : "{{params.UNSUBSCRIBE_URL}}";
+  const greeting = preview ? "Hello, AI explorer." : "Hello, {{params.FIRST_NAME}}.";
   const rows = stories.map((item, i) => {
     const rank = String(i + 1).padStart(2, "0");
     const badge = item.impact === "Major" ? "BIG UPDATE" : item.category.toUpperCase();

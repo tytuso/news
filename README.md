@@ -5,15 +5,15 @@
 NileSignal is a free mobile-first AI news reader built with Next.js. It collects RSS feeds from AI labs, researchers, developers and African technology publishers.
 
 ## Daily email newsletter
-The free daily email briefing uses **Brevo Marketing Campaigns**, not promotional content sent via transactional email. It features up to 10 important recent stories (depending on availability), concise context, clear source links, and a prominent footer link to signal.nileai.solutions, with Brevo's native unsubscribe link.
+The free, informational AI briefing uses **Brevo Transactional Email API** in a personalized batch because the marketing campaign creation endpoint returns HTTP 405 on this Brevo account. It does not contain promotional content. It features up to 10 important recent stories (depending on availability), concise context, clear source links, and a prominent footer link to signal.nileai.solutions, with Brevo's native unsubscribe link.
 
 - Name/email signup with explicit, unchecked-by-default consent; contacts are added immediately to Brevo List #5 without a confirmation email
 - Email is stored in a dedicated **Brevo contact list**, not in your website's database
-- Native unsubscribe page managed by Brevo, no login required
+- Individual HMAC-signed unsubscribe link; each reader confirms opt-out on the website, which removes them from NileSignal List #5 without globally blacklisting the address
 - Free newsletter audience capped at **200 subscribed contacts** to remain below Brevo Free's current 300 emails/day allowance
 - Vercel Cron invokes GET /api/cron/daily-news at **06:00 UTC daily (09:00 Africa/Kampala)**; Hobby schedules are approximate within the hour
-- Campaign uses the Uganda local date, and duplicates are checked before creation, preventing most accidental double sending
-- If no recent news or subscribers exist, no campaign is sent; the story selector uses the last 72 hours, prioritizes estimated impact, and limits any one publisher to two stories
+- One daily batch at 09:00 Uganda time with per-recipient private message versions and a deterministic daily idempotency key (Brevo de-duplicates retries for 30 minutes)
+- If no recent news or active subscribers exist, no email is sent; the story selector uses the last 72 hours, prioritizes estimated impact, and limits any one publisher to two stories
 - When the email provider is not configured, the UI displays a clear **coming soon** state rather than a broken form
 
 ### Activate the newsletter
@@ -30,7 +30,7 @@ The free daily email briefing uses **Brevo Marketing Campaigns**, not promotiona
 **No confirmation email is sent during signup.** Email quota and account-review restrictions still apply to the daily newsletter. Single opt-in has greater risk of invalid or malicious signups than double opt-in; the form uses explicit consent, a honeypot, and best-effort instance-local throttling. Before promoting heavily on YouTube, add durable rate limits and a bot challenge (for example Cloudflare Turnstile) to guard deliverability.
 
 ### Privacy
-Brevo stores names and email addresses as soon as the visitor explicitly consents and clicks Subscribe; no email verification is performed. Subscribers can unsubscribe through each campaign's built-in unsubscribe link or contact info@nileai.solutions. See /privacy.
+Brevo stores names and email addresses as soon as the visitor explicitly consents and clicks Subscribe; no email verification is performed. Subscribers can unsubscribe through the signed one-click-to-confirm unsubscribe link in each email or contact info@nileai.solutions. See /privacy.
 
 ### Preview before sending
 Visit https://signal.nileai.solutions/newsletter/preview to view a browser rendering of the same email template and selected stories **without sending any messages**. For an actual delivery test, create a draft campaign in Brevo and use its **Send test** action to one chosen email address. A preview does not prove deliverability; check the first scheduled campaign in Brevo after 9 AM Uganda time.
@@ -50,3 +50,6 @@ npm run build
 
 ## Editorial note
 News descriptions are publisher metadata; impact labels and short explanations are automated estimates, not verified analysis. Some RSS sources may block access or be unavailable.
+
+### Automated sending safety
+The daily job requires `NILESIGNAL_DAILY_ENABLED=true` in the **production** Vercel environment. Until the real batch has been safely tested, it remains paused; the website signup stays active. Brevo returns a `messageIds` array after accepting a batch: that is not proof of final inbox placement. Review Brevo transactional logs to verify delivery. The recipient list is loaded from Brevo List #5 and excludes blacklisted or unsubscribed contacts.
