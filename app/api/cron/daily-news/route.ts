@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         }
       })),
       tags: ["nilesignal-daily-" + day],
-      headers: { idempotencyKey: dailyIdempotencyKey(day) }
+      headers: { "Idempotency-Key": dailyIdempotencyKey(day) }
     }) as { messageIds?: string[] };
     if (!Array.isArray(response.messageIds) || response.messageIds.length !== recipients.length) {
       throw new Error("Batch response did not match intended recipients");
